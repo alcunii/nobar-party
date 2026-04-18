@@ -22,6 +22,17 @@ describe("handleHttp", () => {
     expect(res.status).toBe(405);
   });
 
+  it("returns 204 with CORS for OPTIONS preflight on any path", async () => {
+    const res = await handleHttp(req("OPTIONS", "/version"), {
+      versionInfo: { version: "1.0.0", downloadUrl: { win: "", mac: "" } },
+      landingHtml: () => "<html></html>",
+    });
+    expect(res.status).toBe(204);
+    expect(res.headers["access-control-allow-origin"]).toBe("*");
+    expect(res.headers["access-control-allow-methods"]).toBe("GET,OPTIONS");
+    expect(res.body).toBe("");
+  });
+
   it("returns version JSON with CORS", async () => {
     const res = await handleHttp(req("GET", "/version"), {
       versionInfo: { version: "1.2.3", downloadUrl: { win: "W", mac: "M" } },
@@ -30,7 +41,7 @@ describe("handleHttp", () => {
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("application/json");
     expect(res.headers["access-control-allow-origin"]).toBe("*");
-    expect(JSON.parse(res.body as string)).toEqual({
+    expect(JSON.parse(res.body)).toEqual({
       version: "1.2.3",
       downloadUrl: { win: "W", mac: "M" },
     });

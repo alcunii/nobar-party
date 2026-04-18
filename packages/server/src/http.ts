@@ -30,6 +30,10 @@ export async function handleHttp(req: HttpRequest, deps: HttpDeps): Promise<Http
   const url = new URL(req.url, "http://x");
   const path = url.pathname;
 
+  if (req.method === "OPTIONS") {
+    return { status: 204, headers: { ...CORS }, body: "" };
+  }
+
   if (path === "/version") {
     if (req.method !== "GET") return text(405, "method not allowed");
     return {
