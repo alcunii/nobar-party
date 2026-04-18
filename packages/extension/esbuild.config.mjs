@@ -28,6 +28,7 @@ function copyStatic() {
   for (const f of ["manifest.json", "popup.html", "popup.css", "sidebar.html", "sidebar.css"]) {
     try { cpSync(`src/${f}`, `${outdir}/${f}`); } catch { /* missing ok during early phases */ }
   }
+  try { cpSync("src/icons", `${outdir}/icons`, { recursive: true }); } catch { /* missing ok during early phases */ }
 }
 
 if (watch) {
