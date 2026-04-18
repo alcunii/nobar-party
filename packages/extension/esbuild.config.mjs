@@ -6,17 +6,23 @@ const outdir = "dist";
 
 mkdirSync(outdir, { recursive: true });
 
-const entryPoints = {
+// Service worker is a module (manifest.json: "type": "module") — keep ESM.
+// Popup and sidebar are loaded via <script type="module"> in their HTML — ESM.
+const moduleEntries = {
   service_worker: "src/service_worker.ts",
-  content: "src/content.ts",
-  content_join: "src/content_join.ts",
   popup: "src/popup.ts",
   sidebar: "src/sidebar.ts",
 };
 
+// Content scripts are CLASSIC scripts — cannot contain ES `export`/`import`.
+// Must use IIFE format so esbuild strips top-level exports.
+const contentEntries = {
+  content: "src/content.ts",
+  content_join: "src/content_join.ts",
+};
+
 const shared = {
   bundle: true,
-  format: "esm",
   target: "chrome120",
   sourcemap: true,
   logLevel: "info",
@@ -33,11 +39,13 @@ function copyStatic() {
 }
 
 if (watch) {
-  const ctx = await context({ ...shared, entryPoints, outdir });
-  await ctx.watch();
+  const ctxModules = await context({ ...shared, format: "esm", entryPoints: moduleEntries, outdir });
+  const ctxContent = await context({ ...shared, format: "iife", entryPoints: contentEntries, outdir });
+  await Promise.all([ctxModules.watch(), ctxContent.watch()]);
   console.log("esbuild watching…");
   copyStatic();
 } else {
-  await build({ ...shared, entryPoints, outdir });
+  await build({ ...shared, format: "esm", entryPoints: moduleEntries, outdir });
+  await build({ ...shared, format: "iife", entryPoints: contentEntries, outdir });
   copyStatic();
 }
