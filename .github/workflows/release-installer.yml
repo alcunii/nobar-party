@@ -33,33 +33,30 @@ jobs:
       - name: Build installer (and extension via prebuild)
         run: pnpm --filter @nobar-party/installer build
 
+      - name: Rename Windows artifact to stable filename
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          cd packages/installer/src-tauri/target/release/bundle/msi
+          mv NobarParty_*.msi NobarParty-windows.msi
+
+      - name: Rename macOS artifact to stable filename
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          cd packages/installer/src-tauri/target/release/bundle/dmg
+          mv NobarParty_*.dmg NobarParty-macos.dmg
+
       - name: Upload Windows artifact
         if: matrix.os == 'windows-latest'
         uses: softprops/action-gh-release@v2
         with:
-          files: packages/installer/src-tauri/target/release/bundle/msi/*.msi
+          files: packages/installer/src-tauri/target/release/bundle/msi/NobarParty-windows.msi
           draft: true
 
       - name: Upload macOS artifact
-        if: startsWith(matrix.os, 'macos')
+        if: matrix.os == 'macos-latest'
         uses: softprops/action-gh-release@v2
         with:
-          files: packages/installer/src-tauri/target/release/bundle/dmg/*.dmg
+          files: packages/installer/src-tauri/target/release/bundle/dmg/NobarParty-macos.dmg
           draft: true
-
-  bump-server-version:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Bump version.json
-        run: |
-          VERSION="${GITHUB_REF_NAME#installer-v}"
-          node -e "const f='packages/server/src/version.json';const j=JSON.parse(require('fs').readFileSync(f,'utf8'));j.version=process.argv[1];require('fs').writeFileSync(f,JSON.stringify(j,null,2)+'\n');" "$VERSION"
-      - name: Create PR
-        uses: peter-evans/create-pull-request@v7
-        with:
-          base: main
-          commit-message: "chore(server): bump installer version to ${{ github.ref_name }}"
-          title: "chore(server): bump installer version to ${{ github.ref_name }}"
-          branch: "chore/bump-installer-${{ github.ref_name }}"

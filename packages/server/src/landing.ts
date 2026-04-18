@@ -42,8 +42,8 @@ export function renderLandingPage(roomId: string): string {
 
   <h2>Don't have the extension yet?</h2>
   <div class="downloads">
-    <a id="dl-win" href="https://github.com/alcunii/nobar-party/releases/latest/download/NobarParty.msi">Download for Windows</a>
-    <a id="dl-mac" class="secondary" href="https://github.com/alcunii/nobar-party/releases/latest/download/NobarParty.dmg">Download for macOS</a>
+    <a id="dl-win" href="https://github.com/alcunii/nobar-party/releases/latest/download/NobarParty-windows.msi">Download for Windows</a>
+    <a id="dl-mac" class="secondary" href="https://github.com/alcunii/nobar-party/releases/latest/download/NobarParty-macos.dmg">Download for macOS</a>
   </div>
 
   <script>
@@ -59,6 +59,16 @@ export function renderLandingPage(roomId: string): string {
           // default — win primary
         }
       } catch (e) {}
+
+      // Fetch /version from the same host to let the host override download URLs
+      // (overrides the hardcoded GitHub URLs above). Non-blocking; fails silently.
+      fetch("/version").then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (info) {
+          if (!info || !info.downloadUrl) return;
+          if (info.downloadUrl.win) document.getElementById("dl-win").href = info.downloadUrl.win;
+          if (info.downloadUrl.mac) document.getElementById("dl-mac").href = info.downloadUrl.mac;
+        })
+        .catch(function () { /* keep hardcoded fallbacks */ });
 
       var msg = document.getElementById("status-msg");
       var statusEl = document.getElementById("status");

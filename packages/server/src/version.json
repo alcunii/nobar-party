@@ -1,7 +1,7 @@
 {
-  "version": "0.0.0",
+  "version": "0.1.11",
   "downloadUrl": {
-    "win": "https://github.com/alcunii/nobar-party/releases/latest/download/NobarParty.msi",
-    "mac": "https://github.com/alcunii/nobar-party/releases/latest/download/NobarParty.dmg"
+    "win": "https://github.com/alcunii/nobar-party/releases/latest/download/NobarParty-windows.msi",
+    "mac": "https://github.com/alcunii/nobar-party/releases/latest/download/NobarParty-macos.dmg"
   }
 }

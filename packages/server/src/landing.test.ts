@@ -9,10 +9,16 @@ describe("renderLandingPage", () => {
     expect(html.toLowerCase()).toContain("</html>");
   });
 
-  it("contains both download links", () => {
+  it("contains both download links with stable filenames", () => {
     const html = renderLandingPage("ABC123");
-    expect(html).toMatch(/releases.*\.msi/i);
-    expect(html).toMatch(/releases.*\.dmg/i);
+    expect(html).toContain("NobarParty-windows.msi");
+    expect(html).toContain("NobarParty-macos.dmg");
+  });
+
+  it("fetches /version to let hosts override download URLs", () => {
+    const html = renderLandingPage("ABC123");
+    expect(html).toContain('fetch("/version")');
+    expect(html).toContain("downloadUrl");
   });
 
   it("listens for postMessage from the content script", () => {
