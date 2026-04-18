@@ -42,7 +42,7 @@ describe("loadVersionInfo", () => {
     vi.mocked(readFileSync).mockReturnValue(
       JSON.stringify({
         version: "9.9.9",
-        downloadUrl: { win: "W", mac: "M" },
+        downloadUrl: { win: "https://example.com/w.msi", mac: "https://example.com/m.dmg" },
       }) as unknown as Buffer
     );
     const info = loadVersionInfo();

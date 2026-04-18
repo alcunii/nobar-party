@@ -6,8 +6,8 @@ import { z } from "zod";
 export const VersionInfoSchema = z.object({
   version: z.string().regex(/^\d+\.\d+\.\d+$/, "expected semver x.y.z"),
   downloadUrl: z.object({
-    win: z.string().min(1),
-    mac: z.string().min(1),
+    win: z.string().url(),
+    mac: z.string().url(),
   }),
 });
 
