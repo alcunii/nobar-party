@@ -1,6 +1,6 @@
 import { findBestVideo, listCandidates, videoSignature, makeDriver } from "./lib/video.js";
 import { SUPPRESS_WINDOW_MS } from "./lib/sync.js";
-import { sendRuntimeMessage, onRuntimeMessage, ContentCandidate } from "./lib/messages.js";
+import { sendRuntimeMessage, onRuntimeMessage, ContentCandidate, ChatLine } from "./lib/messages.js";
 
 const FRAME_ID = (() => {
   try { return window.top === window ? 0 : Math.floor(Math.random() * 1_000_000_000); } catch { return 0; }
@@ -87,6 +87,25 @@ function injectSidebar(): void {
   document.documentElement.appendChild(iframe);
   sidebarIframe = iframe;
 }
+
+// Bridge outbound messages from the sidebar iframe up to the service worker
+// (sidebar:chat) and handle page-level follow-URL navigation (sidebar:followUrl).
+// Only accept messages from our own sidebar iframe to ignore arbitrary postMessage
+// calls from the host page.
+window.addEventListener("message", (ev) => {
+  if (!sidebarIframe || ev.source !== sidebarIframe.contentWindow) return;
+  const msg = ev.data as { kind?: string; message?: ChatLine; url?: string };
+  if (msg.kind === "sidebar:chat" && msg.message) {
+    void sendRuntimeMessage({ kind: "sidebar:chat", message: msg.message });
+  } else if (msg.kind === "sidebar:followUrl" && typeof msg.url === "string") {
+    try {
+      const u = new URL(msg.url);
+      if (u.protocol === "http:" || u.protocol === "https:") {
+        window.location.href = msg.url;
+      }
+    } catch { /* ignore bad URL */ }
+  }
+});
 
 onRuntimeMessage((msg) => {
   switch (msg.kind) {

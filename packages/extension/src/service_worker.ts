@@ -309,6 +309,14 @@ onRuntimeMessage(async (msg, sender) => {
       const text = (msg as any).message?.text;
       if (!text || !client) return;
       client.send({ type: "chat", text });
+      // Local echo — the server broadcast excludes the sender, so echo to our
+      // own sidebar so the sender sees their own messages in-line.
+      if (room) {
+        forwardToSidebar({
+          kind: "sidebar:chat",
+          message: { fromId: room.selfId, nickname: room.nickname, text, at: Date.now() },
+        });
+      }
       return;
     }
     case "invite:received":
