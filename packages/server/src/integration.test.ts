@@ -1,5 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, beforeAll, afterAll, describe, expect, it } from "vitest";
+import { createServer } from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
+import { handleHttp } from "./http.js";
+import { renderLandingPage } from "./landing.js";
 import { RoomRegistry } from "./room.js";
 import { ConnectionManager } from "./connection.js";
 import type { ServerConfig } from "./config.js";
@@ -149,5 +152,59 @@ describe("server integration", () => {
     );
     expect(err.code).toBe("bad_request");
     a.close();
+  });
+});
+
+describe("http routes (integration)", () => {
+  let server: ReturnType<typeof createServer>;
+  let port: number;
+
+  beforeAll(async () => {
+    const versionInfo = { version: "1.0.0", downloadUrl: { win: "https://e.com/w.msi", mac: "https://e.com/m.dmg" } };
+    server = createServer((req, res) => {
+      void (async () => {
+        const r = await handleHttp(
+          { method: req.method ?? "GET", url: req.url ?? "/" },
+          { versionInfo, landingHtml: renderLandingPage }
+        );
+        res.writeHead(r.status, r.headers);
+        res.end(r.body);
+      })();
+    });
+    const wss = new WebSocketServer({ noServer: true });
+    server.on("upgrade", (req, socket, head) => {
+      wss.handleUpgrade(req, socket, head, () => { /* no-op */ });
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+    const addr = server.address();
+    port = typeof addr === "object" && addr ? addr.port : 0;
+  });
+
+  afterAll(async () => { await new Promise<void>((resolve) => server.close(() => resolve())); });
+
+  it("GET /version returns versionInfo JSON", async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/version`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.version).toBe("1.0.0");
+    expect(body.downloadUrl.win).toContain("msi");
+  });
+
+  it("GET /join?room=ABC123 returns landing HTML with the room code", async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/join?room=ABC123`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type") ?? "").toContain("text/html");
+    const body = await res.text();
+    expect(body).toContain("ABC123");
+  });
+
+  it("GET /join with bad room code returns 400", async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/join?room=BAD`);
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /unknown returns 404", async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/unknown`);
+    expect(res.status).toBe(404);
   });
 });
