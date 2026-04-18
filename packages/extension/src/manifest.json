@@ -28,6 +28,11 @@
       "js": ["content.js"],
       "all_frames": true,
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://*/join*"],
+      "js": ["content_join.js"],
+      "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [

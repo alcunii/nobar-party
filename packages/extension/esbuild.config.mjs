@@ -9,6 +9,7 @@ mkdirSync(outdir, { recursive: true });
 const entryPoints = {
   service_worker: "src/service_worker.ts",
   content: "src/content.ts",
+  content_join: "src/content_join.ts",
   popup: "src/popup.ts",
   sidebar: "src/sidebar.ts",
 };
