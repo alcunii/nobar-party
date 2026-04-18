@@ -3,3 +3,4 @@
 pub mod chrome;
 pub mod extract;
 pub mod launch;
+pub mod install_config;
