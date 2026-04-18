@@ -103,24 +103,14 @@ The only shared infrastructure is a tiny signaling server that relays `{play, pa
 
 ### For users (install the extension)
 
-v0.1.0 is sideload-only. Chrome Web Store distribution is on the roadmap.
+**Easy path (recommended):** Ask the host for their invite link (looks like
+`https://watch.example.com/join?room=ABC123`) and open it in Chrome. Click the
+Windows or macOS download button on that page, run the installer, follow the
+5-screen wizard, and return to the invite tab when prompted. You'll drop into
+the room automatically.
 
-```bash
-git clone https://github.com/alcunii/nobar-party.git
-cd nobar-party
-pnpm install
-pnpm --filter @nobar-party/protocol build
-pnpm --filter @nobar-party/extension build
-```
-
-Then in Chrome:
-
-1. Open `chrome://extensions`
-2. Toggle **Developer mode** on (top right)
-3. Click **Load unpacked** → select `packages/extension/dist`
-4. Click the Nobar Party icon in the toolbar → set your nickname and your server URL
-
-> **Note:** Chrome / Brave / Edge / any Chromium work. Firefox port is on the [roadmap](#️-roadmap).
+**Manual path:** If you'd rather build the extension yourself (or run Linux),
+see [docs/development.md](./docs/development.md).
 
 ### For hosts (run the signaling server)
 
