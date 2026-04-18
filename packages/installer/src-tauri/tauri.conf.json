@@ -1,0 +1,27 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "productName": "NobarParty",
+  "version": "0.0.0",
+  "identifier": "com.nobar-party.installer",
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../src"
+  },
+  "app": {
+    "windows": [{
+      "title": "Nobar Party Installer",
+      "width": 540,
+      "height": 620,
+      "resizable": false,
+      "center": true
+    }],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "dmg"],
+    "resources": ["resources/extension.zip"]
+  }
+}
