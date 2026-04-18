@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "prebuild": "node scripts/pack-extension.mjs",
-    "build": "tauri build",
-    "dev": "tauri dev",
+    "build": "tauri build --features app",
+    "dev": "tauri dev --features app",
     "tauri": "tauri"
   },
   "devDependencies": {
