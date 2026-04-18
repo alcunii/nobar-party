@@ -22,6 +22,7 @@
   "bundle": {
     "active": true,
     "targets": ["msi", "dmg"],
-    "resources": ["resources/extension.zip"]
+    "resources": ["resources/extension.zip"],
+    "icon": ["icons/icon.png"]
   }
 }

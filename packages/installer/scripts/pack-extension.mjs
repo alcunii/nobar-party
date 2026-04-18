@@ -12,7 +12,7 @@ const zipPath = join(resDir, "extension.zip");
 
 function build() {
   const r = spawnSync("pnpm", ["-r", "--filter", "@nobar-party/extension...", "build"], {
-    cwd: repoRoot, stdio: "inherit",
+    cwd: repoRoot, stdio: "inherit", shell: true,
   });
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
