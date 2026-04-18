@@ -317,6 +317,7 @@ onRuntimeMessage(async (msg, sender) => {
         {
           getNickname: async () => (await storage.getLocal(PersistentKey.Nickname)) ?? undefined,
           setServerUrl: (url) => storage.setLocal(PersistentKey.ServerUrl, url),
+          setPendingInvite: (invite) => storage.setSession(SessionKey.PendingInvite, invite),
           joinRoom: (input) => joinRoom(input),
         }
       );
