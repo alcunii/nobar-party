@@ -1,4 +1,5 @@
-const { invoke } = window.__TAURI__.core;
+const invoke = (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke)
+  || ((name) => Promise.reject(new Error(`Tauri bridge unavailable — cannot call "${name}". Check that withGlobalTauri is enabled.`)));
 
 const screens = ["welcome", "extracting", "load", "return", "done"];
 function show(name) {
@@ -56,4 +57,7 @@ async function onInstall() {
   show("load");
 }
 
-init();
+init().catch((e) => {
+  const el = document.getElementById("chrome-status");
+  if (el) el.textContent = `Startup error: ${e && e.message ? e.message : e}`;
+});

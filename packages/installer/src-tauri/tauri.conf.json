@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "NobarParty",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "identifier": "com.nobar-party.installer",
   "build": {
     "beforeDevCommand": "",
@@ -10,6 +10,7 @@
     "frontendDist": "../src"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [{
       "title": "Nobar Party Installer",
       "width": 540,
