@@ -1,0 +1,27 @@
+{
+  "name": "@nobar-party/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "dev": "node esbuild.config.mjs --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@nobar-party/protocol": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.2",
+    "@types/chrome": "^0.0.271",
+    "esbuild": "^0.23.1",
+    "jsdom": "^25.0.1",
+    "@types/jsdom": "^21.1.7",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.1"
+  }
+}
