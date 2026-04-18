@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="sidebar.css" />
+  </head>
+  <body>
+    <div id="sidebar">
+      <header>
+        <span id="title">Nobar Party</span>
+        <span id="status"></span>
+        <button id="collapse">—</button>
+      </header>
+      <div id="members"></div>
+      <div id="messages" role="log"></div>
+      <div id="banner" hidden></div>
+      <form id="composer">
+        <input id="input" maxlength="1000" placeholder="Type…" autocomplete="off"/>
+      </form>
+    </div>
+    <script type="module" src="sidebar.js"></script>
+  </body>
+</html>

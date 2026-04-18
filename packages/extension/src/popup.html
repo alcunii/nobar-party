@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main id="app">
+      <section id="idle-view" hidden>
+        <h1>Nobar Party</h1>
+        <label>Nickname <input id="nickname" maxlength="32" placeholder="alice"/></label>
+        <button id="create-btn">Create room</button>
+        <div class="or">or</div>
+        <label>Room code <input id="room-code" maxlength="6" placeholder="ABC234"/></label>
+        <button id="join-btn">Join room</button>
+      </section>
+
+      <section id="room-view" hidden>
+        <h1 id="room-title"></h1>
+        <div id="members"></div>
+        <button id="copy-code">Copy code</button>
+        <button id="leave-btn">Leave room</button>
+        <details>
+          <summary>Video source</summary>
+          <div id="video-status"></div>
+          <button id="pick-manually">Pick manually</button>
+          <ul id="video-candidates"></ul>
+        </details>
+        <details>
+          <summary>Settings</summary>
+          <label>Server URL <input id="server-url" placeholder="ws://localhost:3050"/></label>
+          <button id="save-settings">Save</button>
+        </details>
+      </section>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
