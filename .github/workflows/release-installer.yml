@@ -1,0 +1,62 @@
+name: Release Installer
+
+on:
+  push:
+    tags: ["installer-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build installer (and extension via prebuild)
+        run: pnpm --filter @nobar-party/installer build
+
+      - name: Rename Windows artifact to stable filename
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          cd packages/installer/src-tauri/target/release/bundle/msi
+          mv NobarParty_*.msi NobarParty-windows.msi
+
+      - name: Rename macOS artifact to stable filename
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          cd packages/installer/src-tauri/target/release/bundle/dmg
+          mv NobarParty_*.dmg NobarParty-macos.dmg
+
+      - name: Upload Windows artifact
+        if: matrix.os == 'windows-latest'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: packages/installer/src-tauri/target/release/bundle/msi/NobarParty-windows.msi
+          draft: true
+
+      - name: Upload macOS artifact
+        if: matrix.os == 'macos-latest'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: packages/installer/src-tauri/target/release/bundle/dmg/NobarParty-macos.dmg
+          draft: true

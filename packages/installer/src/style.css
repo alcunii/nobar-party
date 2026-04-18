@@ -1,0 +1,30 @@
+:root { color-scheme: dark light; }
+* { box-sizing: border-box; }
+body {
+  margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #0f1115; color: #e8e8e8;
+}
+#wizard { padding: 1.5rem 1.75rem; }
+h1 { font-size: 1.5rem; margin: 0 0 0.5rem; }
+h2 { font-size: 1.2rem; margin: 0 0 0.75rem; }
+p, li { line-height: 1.5; }
+button {
+  appearance: none; border: 0; background: #1c6fb8; color: white;
+  padding: 0.55rem 1rem; border-radius: 6px; font: inherit; cursor: pointer;
+}
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.secondary { background: #2a2e37; color: inherit; }
+pre {
+  background: #1a1d24; padding: 0.6rem 0.8rem; border-radius: 6px;
+  word-break: break-all; white-space: pre-wrap; font-size: 0.9rem;
+}
+input[type="url"] {
+  width: 100%; padding: 0.5rem; background: #1a1d24; color: inherit;
+  border: 1px solid #2a2e37; border-radius: 6px; font: inherit;
+}
+.spinner {
+  width: 32px; height: 32px; border: 3px solid #2a2e37; border-top-color: #1c6fb8;
+  border-radius: 50%; animation: spin 1s linear infinite; margin: 1rem 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#chrome-status { font-size: 0.9rem; opacity: 0.8; margin: 0.75rem 0; }

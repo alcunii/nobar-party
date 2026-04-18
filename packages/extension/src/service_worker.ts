@@ -9,6 +9,8 @@ import {
   ContentCandidate,
   ActiveRoomView,
 } from "./lib/messages.js";
+import { handleInviteReceived } from "./service_worker.invite.js";
+import { fetchLatest, isNewer, Latest } from "./lib/version-check.js";
 
 // Build-time constant injected by esbuild's `define` (see esbuild.config.mjs).
 declare const process: { env: { DEFAULT_SERVER_URL?: string } };
@@ -36,14 +38,19 @@ let client: WsClient | null = null;
 let pingSeq: Array<{ pingAt: number }> = [];
 let room: RoomState | null = null;
 let allCandidates = new Map<string, Candidate>(); // keyed by `${tabId}:${frameId}:${signature}`
+let latestAvailable: Latest | null = null;
 
 chrome.alarms.create("keepalive", { periodInMinutes: 0.5 });
+chrome.alarms.create("version-check", { periodInMinutes: 60 * 24 });
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name === "keepalive" && client) {
     const at = Date.now();
     client.send({ type: "ping", at });
     pingSeq.push({ pingAt: at });
     if (pingSeq.length > 10) pingSeq = pingSeq.slice(-10);
+  }
+  if (a.name === "version-check") {
+    void doVersionCheck();
   }
 });
 
@@ -56,6 +63,8 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 chrome.runtime.onStartup.addListener(() => void restoreSession());
 chrome.runtime.onInstalled.addListener(() => void restoreSession());
+chrome.runtime.onStartup.addListener(() => void doVersionCheck());
+chrome.runtime.onInstalled.addListener(() => void doVersionCheck());
 
 async function restoreSession(): Promise<void> {
   const prev = await storage.getSession(SessionKey.ActiveRoom);
@@ -66,6 +75,22 @@ async function restoreSession(): Promise<void> {
 async function ensureServerUrl(): Promise<string> {
   const stored = await storage.getLocal(PersistentKey.ServerUrl);
   return stored ?? DEFAULT_URL;
+}
+
+async function doVersionCheck(): Promise<void> {
+  const url = await storage.getLocal(PersistentKey.ServerUrl);
+  if (!url) return;
+  const latest = await fetchLatest(url);
+  if (!latest) return;
+  const current = chrome.runtime.getManifest().version;
+  if (!isNewer(current, latest.version)) {
+    latestAvailable = null;
+    await chrome.action.setBadgeText({ text: "" });
+    return;
+  }
+  latestAvailable = latest;
+  await chrome.action.setBadgeText({ text: "↑" });
+  await chrome.action.setBadgeBackgroundColor({ color: "#f5a623" });
 }
 
 function sendJoinForCurrentRoom(): void {
@@ -284,8 +309,29 @@ onRuntimeMessage(async (msg, sender) => {
       const text = (msg as any).message?.text;
       if (!text || !client) return;
       client.send({ type: "chat", text });
+      // Local echo — the server broadcast excludes the sender, so echo to our
+      // own sidebar so the sender sees their own messages in-line.
+      if (room) {
+        forwardToSidebar({
+          kind: "sidebar:chat",
+          message: { fromId: room.selfId, nickname: room.nickname, text, at: Date.now() },
+        });
+      }
       return;
     }
+    case "invite:received":
+      await handleInviteReceived(
+        { serverUrl: msg.serverUrl, roomCode: msg.roomCode },
+        {
+          getNickname: async () => (await storage.getLocal(PersistentKey.Nickname)) ?? undefined,
+          setServerUrl: (url) => storage.setLocal(PersistentKey.ServerUrl, url),
+          setPendingInvite: (invite) => storage.setSession(SessionKey.PendingInvite, invite),
+          joinRoom: (input) => joinRoom(input),
+        }
+      );
+      return { ok: true };
+    case "popup:getUpdateState":
+      return { kind: "sw:updateState", latest: latestAvailable };
     default:
       return;
   }

@@ -1,0 +1,4 @@
+src-tauri/target/
+src-tauri/resources/extension.zip
+dist/
+node_modules/

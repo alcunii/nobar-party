@@ -30,3 +30,14 @@ details summary { cursor: pointer; margin: 10px 0 4px; color: var(--muted); }
 #members .member { background: #1a1d20; padding: 3px 6px; border-radius: 10px; font-size: 11px; }
 #video-candidates { list-style: none; padding: 0; margin: 4px 0; }
 #video-candidates li { padding: 4px; background: #1a1d20; margin: 2px 0; border-radius: 4px; cursor: pointer; }
+.toast {
+  position: fixed; top: 0.5rem; left: 50%; transform: translateX(-50%);
+  background: #1c6fb8; color: white; padding: 0.4rem 0.8rem; border-radius: 6px;
+  font-size: 0.9rem; z-index: 10; transition: opacity 0.2s; opacity: 1;
+}
+.toast[hidden] { display: block; opacity: 0; pointer-events: none; }
+.update-row {
+  background: #f5a623; color: #222; padding: 0.3rem 0.6rem;
+  font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center;
+}
+.update-row a { color: #222; font-weight: 600; margin-left: 0.5rem; }

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Nobar Party",
-  "version": "0.1.0",
+  "version": "0.1.11",
   "description": "Synchronized video watch-along with chat",
   "permissions": ["storage", "alarms", "tabs"],
   "host_permissions": ["<all_urls>"],
@@ -28,6 +28,11 @@
       "js": ["content.js"],
       "all_frames": true,
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://*/join*"],
+      "js": ["content_join.js"],
+      "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [

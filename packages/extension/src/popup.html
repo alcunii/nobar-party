@@ -6,6 +6,12 @@
   </head>
   <body>
     <main id="app">
+      <div id="toast" class="toast" hidden></div>
+      <div id="update-row" class="update-row" hidden>
+        <span>Update available</span>
+        <a id="update-link" href="#" target="_blank" rel="noopener">Download</a>
+      </div>
+
       <section id="idle-view" hidden>
         <h1>Nobar Party</h1>
         <label>Nickname <input id="nickname" maxlength="32" placeholder="alice"/></label>
@@ -19,6 +25,7 @@
         <h1 id="room-title"></h1>
         <div id="members"></div>
         <button id="copy-code">Copy code</button>
+        <button id="copy-invite">Copy invite link</button>
         <button id="leave-btn">Leave room</button>
         <details>
           <summary>Video source</summary>
