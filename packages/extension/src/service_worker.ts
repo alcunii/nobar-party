@@ -68,12 +68,21 @@ async function ensureServerUrl(): Promise<string> {
   return stored ?? DEFAULT_URL;
 }
 
+function sendJoinForCurrentRoom(): void {
+  if (!client || !room) return;
+  if (room.roomId) {
+    client.send({ type: "join", roomId: room.roomId, nickname: room.nickname });
+  } else {
+    client.send({ type: "join", nickname: room.nickname, create: true });
+  }
+}
+
 async function openClient(): Promise<void> {
   if (client) return;
   const url = await ensureServerUrl();
   client = new WsClient({
     url,
-    onOpen: () => { void rejoinAfterReconnect(); },
+    onOpen: () => { sendJoinForCurrentRoom(); },
     onMessage: (msg) => handleServerMessage(msg),
     onClose: (ms) => { if (room) room.reconnectingInMs = ms; broadcastState(); },
     onError: () => { /* logged by WsClient */ },
@@ -85,10 +94,16 @@ function handleServerMessage(msg: ServerMessage): void {
   switch (msg.type) {
     case "room":
       if (!room) return;
+      room.roomId = msg.roomId;
       room.selfId = msg.selfId;
       room.members = msg.members;
       room.currentUrl = msg.url;
       room.reconnectingInMs = null;
+      void storage.setSession(SessionKey.ActiveRoom, {
+        roomId: msg.roomId,
+        selfId: msg.selfId,
+        nickname: room.nickname,
+      });
       broadcastState();
       return;
     case "peer-joined":
@@ -161,6 +176,10 @@ function forwardToSidebar(msg: RuntimeMessage): void {
 }
 
 function broadcastState(): void {
+  // Suppress broadcasts until we have a real roomId from the server — otherwise the popup
+  // flashes the room view with an empty title while waiting for the create ack.
+  if (room && !room.roomId) return;
+
   const view: ActiveRoomView | null = room
     ? {
         roomId: room.roomId,
@@ -176,33 +195,41 @@ function broadcastState(): void {
   if (room?.syncedTabId) void chrome.tabs.sendMessage(room.syncedTabId, { kind: "sw:roomState", state: view });
 }
 
+async function pickSyncedTabId(): Promise<number | null> {
+  // Prefer an active tab whose URL is a regular web page, not the popup page or another
+  // extension/browser page. Falls back to any web tab if no active one qualifies.
+  const isWebUrl = (url: string | undefined): boolean =>
+    !!url && (url.startsWith("http://") || url.startsWith("https://"));
+  const active = await chrome.tabs.query({ active: true });
+  for (const t of active) {
+    if (t.id !== undefined && isWebUrl(t.url)) return t.id;
+  }
+  const all = await chrome.tabs.query({});
+  for (const t of all) {
+    if (t.id !== undefined && isWebUrl(t.url)) return t.id;
+  }
+  return null;
+}
+
 async function createRoom(nickname: string): Promise<void> {
-  await openClient();
   room = { roomId: "", selfId: "", nickname, members: [], currentUrl: null, syncedTabId: null, bestCandidate: null, reconnectingInMs: null };
-  const activeTab = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (activeTab[0]?.id !== undefined) room.syncedTabId = activeTab[0].id;
-  client!.send({ type: "join", nickname, create: true });
-  await storage.setSession(SessionKey.ActiveRoom, { roomId: "", selfId: "", nickname });
+  room.syncedTabId = await pickSyncedTabId();
+  // The socket may not be open yet; sendJoinForCurrentRoom() is also invoked from onOpen,
+  // and will be a no-op here until the socket transitions to open state.
+  if (client) sendJoinForCurrentRoom();
+  else await openClient();
   if (room.syncedTabId !== null) await storage.setSession(SessionKey.SyncedTabId, room.syncedTabId);
-  broadcastState();
 }
 
 async function joinRoom(input: { roomId: string; nickname: string; syncedTabId?: number | null }): Promise<void> {
-  await openClient();
   room = { roomId: input.roomId, selfId: "", nickname: input.nickname, members: [], currentUrl: null, syncedTabId: input.syncedTabId ?? null, bestCandidate: null, reconnectingInMs: null };
   if (room.syncedTabId === null) {
-    const activeTab = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (activeTab[0]?.id !== undefined) room.syncedTabId = activeTab[0].id;
+    room.syncedTabId = await pickSyncedTabId();
   }
-  client!.send({ type: "join", roomId: input.roomId, nickname: input.nickname });
+  if (client) sendJoinForCurrentRoom();
+  else await openClient();
   await storage.setSession(SessionKey.ActiveRoom, { roomId: input.roomId, selfId: "", nickname: input.nickname });
   if (room.syncedTabId !== null) await storage.setSession(SessionKey.SyncedTabId, room.syncedTabId);
-  broadcastState();
-}
-
-async function rejoinAfterReconnect(): Promise<void> {
-  if (!room || !room.roomId) return;
-  client!.send({ type: "join", roomId: room.roomId, nickname: room.nickname });
 }
 
 async function leaveRoom(): Promise<void> {
