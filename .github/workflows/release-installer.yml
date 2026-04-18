@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [windows-latest, macos-latest, macos-13]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -41,7 +41,7 @@ jobs:
           draft: true
 
       - name: Upload macOS artifact
-        if: matrix.os == 'macos-latest'
+        if: startsWith(matrix.os, 'macos')
         uses: softprops/action-gh-release@v2
         with:
           files: packages/installer/src-tauri/target/release/bundle/dmg/*.dmg
@@ -59,6 +59,7 @@ jobs:
       - name: Create PR
         uses: peter-evans/create-pull-request@v7
         with:
+          base: main
           commit-message: "chore(server): bump installer version to ${{ github.ref_name }}"
           title: "chore(server): bump installer version to ${{ github.ref_name }}"
           branch: "chore/bump-installer-${{ github.ref_name }}"
