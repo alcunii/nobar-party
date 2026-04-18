@@ -7,43 +7,8 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function buildInlineScript(safe: string): string {
-  // Returned as a plain string — callers embed it via a non-<script> mechanism
-  // so that the rendered HTML never contains the literal four-character sequence
-  // "<scr" + "ipt>" at the top level, which would trip the XSS-escape test.
-  return `(function () {
-      try {
-        var ua = navigator.userAgent;
-        var mac = /Macintosh|Mac OS X/i.test(ua);
-        if (mac) {
-          document.getElementById("dl-mac").classList.remove("secondary");
-          document.getElementById("dl-win").classList.add("secondary");
-        }
-      } catch (e) {}
-
-      var msg = document.getElementById("status-msg");
-      var statusEl = document.getElementById("status");
-      window.addEventListener("message", function (ev) {
-        if (!ev.data || typeof ev.data !== "object") return;
-        if (ev.data.type === "nobar-config-saved") {
-          statusEl.className = "status ok";
-          msg.textContent = "Extension detected \u2014 writing config\u2026";
-          setTimeout(function () {
-            statusEl.className = "status go";
-            msg.textContent = "Joining room ${safe}\u2026";
-          }, 400);
-        }
-      });
-    })();`;
-}
-
 export function renderLandingPage(roomId: string): string {
   const safe = escapeHtml(roomId);
-  const js = buildInlineScript(safe);
-  // Embed JS via onload on a hidden element to avoid emitting literal <script> tags,
-  // keeping the rendered output free of unescaped user input while preserving
-  // all required JS features (addEventListener, message, nobar-config-saved).
-  const safeJs = js.replace(/"/g, "&quot;");
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -66,12 +31,12 @@ export function renderLandingPage(roomId: string): string {
     .hint { font-size: 0.9rem; opacity: 0.8; margin-top: 1rem; }
   </style>
 </head>
-<body onload="${safeJs}">
+<body>
   <h1>Joining room <span class="room">${safe}</span></h1>
   <p>You're about to join a Nobar Party watch-along.</p>
 
   <div id="status" class="status">
-    <div id="status-msg">Waiting for the extension\u2026</div>
+    <div id="status-msg">Waiting for the extension…</div>
     <div class="hint">Keep this tab open while you install. We'll detect the extension and drop you into the room.</div>
   </div>
 
@@ -80,6 +45,36 @@ export function renderLandingPage(roomId: string): string {
     <a id="dl-win" href="https://github.com/alcunii/nobar-party/releases/latest/download/NobarParty.msi">Download for Windows</a>
     <a id="dl-mac" class="secondary" href="https://github.com/alcunii/nobar-party/releases/latest/download/NobarParty.dmg">Download for macOS</a>
   </div>
+
+  <script>
+    (function () {
+      try {
+        var ua = navigator.userAgent;
+        var win = /Windows/i.test(ua);
+        var mac = /Macintosh|Mac OS X/i.test(ua);
+        if (mac) {
+          document.getElementById("dl-mac").classList.remove("secondary");
+          document.getElementById("dl-win").classList.add("secondary");
+        } else if (win) {
+          // default — win primary
+        }
+      } catch (e) {}
+
+      var msg = document.getElementById("status-msg");
+      var statusEl = document.getElementById("status");
+      window.addEventListener("message", function (ev) {
+        if (!ev.data || typeof ev.data !== "object") return;
+        if (ev.data.type === "nobar-config-saved") {
+          statusEl.className = "status ok";
+          msg.textContent = "Extension detected — writing config…";
+          setTimeout(function () {
+            statusEl.className = "status go";
+            msg.textContent = "Joining room ${safe}…";
+          }, 400);
+        }
+      });
+    })();
+  </script>
 </body>
 </html>`;
 }

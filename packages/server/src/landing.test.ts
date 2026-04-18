@@ -23,8 +23,12 @@ describe("renderLandingPage", () => {
   });
 
   it("html-escapes special characters in the room id parameter", () => {
-    const html = renderLandingPage("<script>");
-    expect(html).not.toContain("<script>");
-    expect(html).toContain("&lt;script&gt;");
+    const safe = renderLandingPage("ABC123");
+    const hostile = renderLandingPage("<script>alert(1)</script>");
+    const countSafe = (safe.match(/<script>/g) || []).length;
+    const countHostile = (hostile.match(/<script>/g) || []).length;
+    expect(countHostile).toBe(countSafe);
+    expect(hostile).toContain("&lt;script&gt;");
+    expect(hostile).not.toContain("<script>alert(1)");
   });
 });
