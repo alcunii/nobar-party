@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Nobar Party Installer</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main id="wizard">
+    <section id="screen-welcome">
+      <h1>Nobar Party</h1>
+      <p>This installer will set up the Nobar Party Chrome extension on your computer so you can watch videos in sync with your friends.</p>
+      <div id="chrome-status"></div>
+      <button id="btn-install" disabled>Install</button>
+    </section>
+
+    <section id="screen-extracting" hidden>
+      <h2>Preparing extension files</h2>
+      <div class="spinner"></div>
+      <p id="extract-msg">Extracting…</p>
+    </section>
+
+    <section id="screen-load" hidden>
+      <h2>Load the extension into Chrome</h2>
+      <p>Chrome is opening to its extensions page. Please do these three things:</p>
+      <ol>
+        <li><strong>Turn on Developer mode</strong> (toggle at the top-right of the page).</li>
+        <li><strong>Click "Load unpacked"</strong>.</li>
+        <li><strong>Paste this path</strong> and press Enter — we've copied it to your clipboard:
+          <pre id="ext-path"></pre>
+        </li>
+      </ol>
+      <button id="btn-done-load">I've done it, continue</button>
+    </section>
+
+    <section id="screen-return" hidden>
+      <h2>Almost there</h2>
+      <p><strong>Switch back to the Chrome tab where you clicked the invite link.</strong> The extension will detect the invite and drop you straight into the room.</p>
+      <details>
+        <summary>Closed the tab?</summary>
+        <p>Paste your invite link here:</p>
+        <input id="fallback-url" type="url" placeholder="https://watch.example.com/join?room=ABC123" />
+        <button id="btn-open-url">Open</button>
+      </details>
+      <button id="btn-next-done">Done</button>
+    </section>
+
+    <section id="screen-done" hidden>
+      <h2>Installation complete</h2>
+      <p>Return to Chrome — the room will open automatically.</p>
+      <button id="btn-close">Close</button>
+    </section>
+  </main>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
