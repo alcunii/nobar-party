@@ -1,0 +1,35 @@
+# dependencies & build output
+node_modules/
+packages/*/dist/
+packages/*/build/
+packages/*/.cache/
+*.tsbuildinfo
+
+# local config (must stay on operator's machine)
+.env
+.env.*
+!.env.example
+deploy/Caddyfile
+deploy/nobar-party.service
+deploy/*.local.*
+
+# runtime artefacts
+*.log
+logs/
+pids/
+*.pid
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# test / coverage output
+coverage/
+playwright-report/
+test-results/
+
+# brainstorming / spec session data (only the final spec in docs/ is tracked)
+.superpowers/
