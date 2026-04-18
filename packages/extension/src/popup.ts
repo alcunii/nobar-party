@@ -1,5 +1,6 @@
 import { sendRuntimeMessage, ActiveRoomView } from "./lib/messages.js";
-import { Storage, PersistentKey } from "./lib/storage.js";
+import { Storage, PersistentKey, SessionKey } from "./lib/storage.js";
+import { buildInviteUrl } from "./popup.invite.js";
 
 const storage = new Storage();
 
@@ -16,12 +17,22 @@ async function init(): Promise<void> {
   const serverUrl = (await storage.getLocal(PersistentKey.ServerUrl)) ?? "";
   ($("server-url") as HTMLInputElement).value = serverUrl;
 
+  const pending = await storage.getSession(SessionKey.PendingInvite);
+  if (pending?.roomCode) {
+    ($("room-code") as HTMLInputElement).value = pending.roomCode;
+    await storage.removeSession(SessionKey.PendingInvite);
+  }
+
   $("create-btn").addEventListener("click", onCreate);
   $("join-btn").addEventListener("click", onJoin);
   $("leave-btn").addEventListener("click", onLeave);
   $("copy-code").addEventListener("click", onCopyCode);
   $("pick-manually").addEventListener("click", onPickManually);
   $("save-settings").addEventListener("click", onSaveSettings);
+  $("copy-invite").addEventListener("click", async () => {
+    const last = lastRenderedState;
+    if (last) await copyInvite(last);
+  });
 
   const resp = (await sendRuntimeMessage<{ kind: "sw:roomState"; state: ActiveRoomView | null }>({ kind: "popup:getState" }));
   render(resp?.state ?? null);
@@ -32,7 +43,10 @@ chrome.runtime.onMessage.addListener((msg: unknown) => {
   if (m.kind === "sw:roomState") render(m.state ?? null);
 });
 
+let lastRenderedState: ActiveRoomView | null = null;
+
 function render(state: ActiveRoomView | null): void {
+  lastRenderedState = state;
   $("idle-view").hidden = state !== null;
   $("room-view").hidden = state === null;
   if (!state) return;
@@ -48,11 +62,36 @@ function render(state: ActiveRoomView | null): void {
   $("video-status").textContent = state.currentUrl ?? "(no URL)";
 }
 
+let lastToastTimer: number | null = null;
+function showToast(message: string): void {
+  const el = $("toast");
+  el.textContent = message;
+  el.hidden = false;
+  if (lastToastTimer !== null) clearTimeout(lastToastTimer);
+  lastToastTimer = setTimeout(() => { el.hidden = true; }, 2000) as unknown as number;
+}
+
+async function copyInvite(state: ActiveRoomView): Promise<void> {
+  const serverUrl = (await storage.getLocal(PersistentKey.ServerUrl)) ?? "";
+  if (!serverUrl) { showToast("Set server URL in Settings first"); return; }
+  const url = buildInviteUrl(serverUrl, state.roomId);
+  await navigator.clipboard.writeText(url);
+  showToast("Invite link copied");
+}
+
 async function onCreate(): Promise<void> {
   const nickname = ($("nickname") as HTMLInputElement).value.trim();
   if (!nickname) return;
   await storage.setLocal(PersistentKey.Nickname, nickname);
   await sendRuntimeMessage({ kind: "popup:createRoom", nickname });
+  const unsub = (msg: unknown) => {
+    const m = msg as { kind?: string; state?: ActiveRoomView | null };
+    if (m.kind === "sw:roomState" && m.state?.roomId) {
+      void copyInvite(m.state);
+      chrome.runtime.onMessage.removeListener(unsub);
+    }
+  };
+  chrome.runtime.onMessage.addListener(unsub);
 }
 
 async function onJoin(): Promise<void> {
