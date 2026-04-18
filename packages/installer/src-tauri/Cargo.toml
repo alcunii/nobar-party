@@ -3,18 +3,36 @@ name = "nobar-installer"
 version = "0.0.0"
 edition = "2021"
 
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "nobar-installer"
+path = "src/bin/installer.rs"
+required-features = ["app"]
+
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2", features = [], optional = true }
 
 [dependencies]
-tauri = { version = "2", features = [] }
-tauri-plugin-clipboard-manager = "2"
-tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
 zip = "0.6"
 
+tauri = { version = "2", features = [], optional = true }
+tauri-plugin-clipboard-manager = { version = "2", optional = true }
+tauri-plugin-shell = { version = "2", optional = true }
+
+[dev-dependencies]
+tempdir = "0.3"
+
 [features]
-default = ["custom-protocol"]
-custom-protocol = ["tauri/custom-protocol"]
+default = []
+app = [
+  "tauri",
+  "tauri-build",
+  "tauri-plugin-clipboard-manager",
+  "tauri-plugin-shell",
+  "tauri/custom-protocol",
+]
