@@ -36,6 +36,14 @@ async function init(): Promise<void> {
 
   const resp = (await sendRuntimeMessage<{ kind: "sw:roomState"; state: ActiveRoomView | null }>({ kind: "popup:getState" }));
   render(resp?.state ?? null);
+
+  const upd = (await sendRuntimeMessage<{ kind: "sw:updateState"; latest: { version: string; downloadUrl: { win: string; mac: string } } | null }>({ kind: "popup:getUpdateState" }));
+  if (upd?.latest) {
+    const isMac = /Macintosh|Mac OS X/i.test(navigator.userAgent);
+    const href = isMac ? upd.latest.downloadUrl.mac : upd.latest.downloadUrl.win;
+    ($("update-link") as HTMLAnchorElement).href = href;
+    $("update-row").hidden = false;
+  }
 }
 
 chrome.runtime.onMessage.addListener((msg: unknown) => {

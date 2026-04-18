@@ -13,7 +13,7 @@ export function isNewer(current: string, latest: string): boolean {
   const c = current.match(SEM); const l = latest.match(SEM);
   if (!c || !l) return false;
   for (let i = 1; i <= 3; i++) {
-    const a = Number.parseInt(c[i], 10); const b = Number.parseInt(l[i], 10);
+    const a = Number.parseInt(c[i] ?? "0", 10); const b = Number.parseInt(l[i] ?? "0", 10);
     if (b > a) return true;
     if (b < a) return false;
   }

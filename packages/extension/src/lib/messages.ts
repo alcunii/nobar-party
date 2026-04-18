@@ -15,7 +15,9 @@ export type RuntimeMessage =
   | { kind: "popup:leaveRoom" }
   | { kind: "popup:setSyncedTab"; tabId: number }
   | { kind: "popup:pickVideo"; frameId: number; signature: string }
-  | { kind: "invite:received"; serverUrl: string; roomCode: string };
+  | { kind: "invite:received"; serverUrl: string; roomCode: string }
+  | { kind: "popup:getUpdateState" }
+  | { kind: "sw:updateState"; latest: { version: string; downloadUrl: { win: string; mac: string } } | null };
 
 export interface ContentCandidate {
   signature: string;
