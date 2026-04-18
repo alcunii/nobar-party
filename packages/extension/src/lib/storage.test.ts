@@ -46,4 +46,11 @@ describe("Storage", () => {
     expect(await s.getSession(SessionKey.ActiveRoom)).toEqual({ roomId: "ABC234", nickname: "alice" });
     expect(await s.getLocal(PersistentKey.Nickname)).toBeUndefined();
   });
+
+  it("stores and retrieves a pending invite", async () => {
+    const s = new Storage();
+    await s.setSession(SessionKey.PendingInvite, { roomCode: "ABC123" });
+    const out = await s.getSession(SessionKey.PendingInvite);
+    expect(out).toEqual({ roomCode: "ABC123" });
+  });
 });

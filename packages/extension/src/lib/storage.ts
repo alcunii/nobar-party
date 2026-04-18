@@ -7,6 +7,7 @@ export type PersistentKey = (typeof PersistentKey)[keyof typeof PersistentKey];
 export const SessionKey = {
   ActiveRoom: "activeRoom",
   SyncedTabId: "syncedTabId",
+  PendingInvite: "pendingInvite",
 } as const;
 export type SessionKey = (typeof SessionKey)[keyof typeof SessionKey];
 
@@ -14,6 +15,10 @@ export interface ActiveRoom {
   roomId: string;
   selfId: string;
   nickname: string;
+}
+
+export interface PendingInvite {
+  roomCode: string;
 }
 
 type LocalShape = {
@@ -24,6 +29,7 @@ type LocalShape = {
 type SessionShape = {
   [SessionKey.ActiveRoom]?: ActiveRoom;
   [SessionKey.SyncedTabId]?: number;
+  [SessionKey.PendingInvite]?: PendingInvite;
 };
 
 export class Storage {
