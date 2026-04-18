@@ -1,0 +1,6 @@
+# Copy this to /etc/caddy/Caddyfile and replace example.com with your domain.
+# Caddy handles WebSocket upgrade and TLS (Let's Encrypt) automatically.
+
+watch.example.com {
+    reverse_proxy localhost:3050
+}

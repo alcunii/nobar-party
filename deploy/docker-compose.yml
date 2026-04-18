@@ -1,0 +1,16 @@
+services:
+  signaling:
+    build:
+      context: ..
+      dockerfile: packages/server/Dockerfile
+    image: nobar-party/signaling:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3050:3050"
+    environment:
+      PORT: "3050"
+      HOST: "0.0.0.0"
+      MAX_ROOM_SIZE: "10"
+      MAX_ROOMS: "1000"
+      FRAME_KB: "16"
+      LOG_LEVEL: "info"

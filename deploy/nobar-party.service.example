@@ -1,0 +1,19 @@
+# Copy this to /etc/systemd/system/nobar-party.service after building the
+# server package. Adjust User, WorkingDirectory, and Environment values to
+# match your host.
+
+[Unit]
+Description=Nobar Party signaling server
+After=network.target
+
+[Service]
+Type=simple
+User=nobar
+WorkingDirectory=/opt/nobar-party/server
+Environment=PORT=3050 HOST=127.0.0.1 MAX_ROOM_SIZE=10 MAX_ROOMS=1000 FRAME_KB=16 LOG_LEVEL=info
+ExecStart=/usr/bin/node /opt/nobar-party/server/dist/index.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
