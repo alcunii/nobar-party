@@ -9,6 +9,7 @@ import {
   ContentCandidate,
   ActiveRoomView,
 } from "./lib/messages.js";
+import { handleInviteReceived } from "./service_worker.invite.js";
 
 // Build-time constant injected by esbuild's `define` (see esbuild.config.mjs).
 declare const process: { env: { DEFAULT_SERVER_URL?: string } };
@@ -286,6 +287,16 @@ onRuntimeMessage(async (msg, sender) => {
       client.send({ type: "chat", text });
       return;
     }
+    case "invite:received":
+      await handleInviteReceived(
+        { serverUrl: msg.serverUrl, roomCode: msg.roomCode },
+        {
+          getNickname: async () => (await storage.getLocal(PersistentKey.Nickname)) ?? undefined,
+          setServerUrl: (url) => storage.setLocal(PersistentKey.ServerUrl, url),
+          joinRoom: (input) => joinRoom(input),
+        }
+      );
+      return { ok: true };
     default:
       return;
   }
