@@ -8,7 +8,7 @@ RUN pnpm install --frozen-lockfile --filter @nobar-party/server...
 COPY packages/protocol/ packages/protocol/
 COPY packages/server/ packages/server/
 COPY tsconfig.base.json ./
-RUN pnpm --filter @nobar-party/server build
+RUN pnpm -r --filter "@nobar-party/server..." build
 
 FROM node:20-alpine
 WORKDIR /app
@@ -17,7 +17,7 @@ COPY --from=build /app/pnpm-workspace.yaml /app/package.json /app/pnpm-lock.yaml
 COPY --from=build /app/packages/protocol/package.json packages/protocol/
 COPY --from=build /app/packages/server/package.json packages/server/
 RUN pnpm install --prod --frozen-lockfile --filter @nobar-party/server...
-COPY --from=build /app/packages/protocol/src packages/protocol/src
+COPY --from=build /app/packages/protocol/dist packages/protocol/dist
 COPY --from=build /app/packages/server/dist packages/server/dist
 ENV PORT=3050 HOST=0.0.0.0
 EXPOSE 3050
