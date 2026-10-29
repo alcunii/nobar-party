@@ -1,6 +1,6 @@
 {
   "name": "nobar-party",
-  "version": "0.1.0",
+  "version": "0.1.11",
   "private": true,
   "description": "Synchronized video watch-along Chrome extension + signaling server",
   "license": "MIT",
@@ -16,7 +16,9 @@
     "test": "pnpm -r --filter \"./packages/*\" test",
     "test:e2e": "pnpm --filter @nobar-party/extension test:e2e",
     "lint": "pnpm -r --filter \"./packages/*\" lint",
-    "typecheck": "pnpm -r --filter \"./packages/*\" typecheck"
+    "typecheck": "pnpm -r --filter \"./packages/*\" typecheck",
+    "version:check": "node scripts/version.mjs check",
+    "version:set": "node scripts/version.mjs set"
   },
   "devDependencies": {
     "typescript": "^5.5.4"

@@ -39,7 +39,33 @@ Dev server URL is baked in at `ws://localhost:3050`. Change it in the popup's Se
 pnpm test         # unit + integration (all packages)
 pnpm test:e2e     # Playwright two-context sync test
 pnpm typecheck    # tsc --noEmit across workspace
+pnpm version:check # every file that stamps a version agrees
 ```
+
+`pnpm test` builds `@nobar-party/protocol` first (server tests import it through
+its package entry point). `pnpm test:e2e` needs `pnpm build` beforehand because
+the harness spawns `packages/server/dist/index.js` and loads
+`packages/extension/dist` unpacked. Extensions require a headed browser, so on a
+headless Linux box run it under `xvfb-run`.
+
+## Releasing
+
+The version lives in one place conceptually and eight places physically. Move
+them together:
+
+```bash
+pnpm version:set 0.2.0   # root + 4 package.json, manifest.json, tauri.conf.json, version.json
+pnpm version:check       # verifies they agree; CI runs this too
+git commit -am "chore: release 0.2.0"
+git tag installer-v0.2.0
+git push && git push --tags
+```
+
+The release workflow builds the `.msi` and `.dmg`, refuses to run if the tag and
+`package.json` disagree, and publishes a single release with both installers
+attached. `packages/server/src/version.json` is what `/version` serves and what
+the extension's update badge compares against, which is why it has to move with
+the rest.
 
 ## Manual test checklist
 
