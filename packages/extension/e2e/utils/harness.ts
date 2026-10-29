@@ -53,11 +53,43 @@ export async function startHarness(): Promise<Harness> {
     const reqPath = (req.url || "/").replace(/\?.*$/, "");
     const filePath = path.join(fixturesDir, reqPath === "/" ? "page.html" : reqPath);
     if (!filePath.startsWith(fixturesDir)) { res.writeHead(403); return res.end(); }
-    fs.readFile(filePath, (err, buf) => {
-      if (err) { res.writeHead(404); return res.end(); }
+    fs.stat(filePath, (err: unknown, stat: fs.Stats) => {
+      if (err || !stat.isFile()) { res.writeHead(404); return res.end(); }
       const type = filePath.endsWith(".html") ? "text/html" : filePath.endsWith(".mp4") ? "video/mp4" : "application/octet-stream";
-      res.writeHead(200, { "content-type": type });
-      res.end(buf);
+
+      // Range support matters: without it Chromium treats the media as
+      // non-seekable, and `video.currentTime = 3` is silently ignored, so the
+      // seek assertions never see the jump.
+      const range = req.headers.range;
+      const m = range ? /^bytes=(\d*)-(\d*)$/.exec(range.trim()) : null;
+      if (m && (m[1] !== "" || m[2] !== "")) {
+        const size = stat.size;
+        let start = m[1] === "" ? size - Number(m[2]) : Number(m[1]);
+        let end = m[1] === "" || m[2] === "" ? size - 1 : Number(m[2]);
+        start = Math.max(0, start);
+        end = Math.min(end, size - 1);
+        if (start > end || start >= size) {
+          res.writeHead(416, { "content-range": `bytes */${size}` });
+          return res.end();
+        }
+        res.writeHead(206, {
+          "content-type": type,
+          "accept-ranges": "bytes",
+          "content-range": `bytes ${start}-${end}/${size}`,
+          "content-length": String(end - start + 1),
+        });
+        if (req.method === "HEAD") return res.end();
+        fs.createReadStream(filePath, { start, end }).pipe(res);
+        return;
+      }
+
+      res.writeHead(200, {
+        "content-type": type,
+        "accept-ranges": "bytes",
+        "content-length": String(stat.size),
+      });
+      if (req.method === "HEAD") return res.end();
+      fs.createReadStream(filePath).pipe(res);
     });
   });
   const httpPort: number = await new Promise((resolve) => {
@@ -89,7 +121,11 @@ export async function startHarness(): Promise<Harness> {
     async cleanup() {
       await userA.close();
       await userB.close();
+      // Wait for the child to actually exit: the next spec file binds the same
+      // port, so signalling and moving on races with the socket being released.
+      const exited = new Promise<void>((resolve) => signaling.once("exit", () => resolve()));
       signaling.kill("SIGTERM");
+      await Promise.race([exited, new Promise<void>((r) => setTimeout(r, 3000))]);
       await new Promise<void>((r) => httpServer.close(() => r()));
     },
   };
