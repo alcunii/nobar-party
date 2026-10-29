@@ -1,7 +1,7 @@
 import type { ServerMessage } from "@nobar-party/protocol";
 import { WsClient } from "./lib/ws-client.js";
 import { ClockEstimator, computeSample } from "./lib/clock.js";
-import { applyPlay, applyPause, applySeek } from "./lib/sync.js";
+import { applyPlay, applyPause, applySeek, continuousDrift, normaliseRemoteState, projectPosition } from "./lib/sync.js";
 import { Storage, PersistentKey, SessionKey } from "./lib/storage.js";
 import {
   onRuntimeMessage,
@@ -32,6 +32,11 @@ interface RoomState {
   syncedTabId: number | null;
   bestCandidate: Candidate | null;
   reconnectingInMs: number | null;
+  /**
+   * Where the room should be, expressed on OUR server-adjusted clock so the
+   * drift maths never mixes two machines' local clocks.
+   */
+  lastKnown: { t: number; at: number; playing: boolean } | null;
 }
 
 let client: WsClient | null = null;
@@ -124,16 +129,31 @@ function handleServerMessage(msg: ServerMessage): void {
       room.members = msg.members;
       room.currentUrl = msg.url;
       room.reconnectingInMs = null;
+      room.lastKnown = normaliseState({ t: msg.t, at: msg.at, playing: msg.playing });
       void storage.setSession(SessionKey.ActiveRoom, {
         roomId: msg.roomId,
         selfId: msg.selfId,
         nickname: room.nickname,
       });
       broadcastState();
+      // A late joiner gets url/t/playing in the room ack; apply it so they land
+      // at the right place instead of at 0:00.
+      if (msg.url && msg.t > 0 && room.syncedTabId !== null) {
+        const tabId = room.syncedTabId;
+        void chrome.tabs.sendMessage(tabId, {
+          kind: "sw:applyEvent",
+          apply: {
+            type: msg.playing ? "play" : "pause",
+            seekTo: currentTargetT(msg.t, msg.at, msg.playing),
+            suppressUntil: Date.now() + 500,
+          },
+        }).catch(() => {});
+      }
       return;
     case "peer-joined":
       if (!room) return;
-      room.members = [...room.members, { id: msg.id, nickname: msg.nickname }];
+      // Replace rather than append: a reconnect re-announces an existing id.
+      room.members = [...room.members.filter((m) => m.id !== msg.id), { id: msg.id, nickname: msg.nickname }];
       broadcastState();
       return;
     case "peer-left":
@@ -144,7 +164,7 @@ function handleServerMessage(msg: ServerMessage): void {
     case "play":
     case "pause":
     case "seek":
-      applyRemotePlayback(msg);
+      void applyRemotePlayback(msg);
       return;
     case "url":
       forwardToSidebar({ kind: "sidebar:peerEvent", event: msg });
@@ -166,33 +186,82 @@ function handleServerMessage(msg: ServerMessage): void {
       return;
     }
     case "error":
+      // Only a failed JOIN leaves us stranded: the popup keeps showing a room
+      // that does not exist and session storage keeps re-joining it on every
+      // browser restart. Anything else is transient and just needs surfacing.
+      if (room && room.selfId === "") {
+        void abandonJoin(msg.code, msg.message);
+        return;
+      }
       forwardToSidebar({ kind: "sidebar:peerEvent", event: msg });
       return;
   }
 }
 
-function applyRemotePlayback(
+/** Room positions arrive on the sender's clock; convert to ours at receipt. */
+function normaliseState(s: { t: number; at: number; playing: boolean }): { t: number; at: number; playing: boolean } {
+  return normaliseRemoteState(s, Date.now() + clock.offset);
+}
+
+function currentTargetT(t: number, at: number, playing: boolean): number {
+  return projectPosition({ t, at, playing }, Date.now() + clock.offset);
+}
+
+async function abandonJoin(code: string, message: string): Promise<void> {
+  room = null;
+  client?.disconnect();
+  client = null;
+  await storage.removeSession(SessionKey.ActiveRoom);
+  await storage.removeSession(SessionKey.SyncedTabId);
+  broadcastState();
+  void chrome.runtime.sendMessage({ kind: "sw:notice", text: `Could not join room (${code}): ${message}` })
+    .catch(() => {});
+}
+
+async function requestVideoState(tabId: number): Promise<{ time: number; paused: boolean }> {
+  try {
+    const res = await chrome.tabs.sendMessage(tabId, { kind: "sw:getVideoState" }) as
+      | { kind: "sw:videoState"; time: number; paused: boolean }
+      | undefined;
+    if (res && typeof res.time === "number") return { time: res.time, paused: res.paused };
+  } catch {
+    /* no content script in that tab (chrome:// page, PDF viewer, ...) */
+  }
+  // Unknown position: pretend we are at 0 so the event still forces a seek,
+  // which is the pre-existing behaviour and always lands everyone together.
+  return { time: 0, paused: false };
+}
+
+async function applyRemotePlayback(
   msg: Extract<ServerMessage, { type: "play" | "pause" | "seek" }>
-): void {
+): Promise<void> {
   if (!room?.syncedTabId) return;
+  const tabId = room.syncedTabId;
   const myNow = Date.now();
+  const video = await requestVideoState(tabId);
+  room.lastKnown = normaliseState({
+    t: msg.t,
+    at: msg.at,
+    playing: msg.type === "play" ? true : msg.type === "pause" ? false : (room.lastKnown?.playing ?? false),
+  });
+
   let cmd;
   if (msg.type === "play") {
     const r = applyPlay({
       event: { t: msg.t, at: msg.at, fromId: msg.fromId },
       myOffset: clock.offset,
       myNow,
-      videoTime: 0,    // content script knows actual currentTime; it refines seek decision
+      videoTime: video.time,
     });
     cmd = { type: "play" as const, seekTo: r.seekTo, suppressUntil: r.suppressUntil };
   } else if (msg.type === "pause") {
-    const r = applyPause({ event: { t: msg.t, at: msg.at, fromId: msg.fromId }, myNow, videoTime: 0 });
+    const r = applyPause({ event: { t: msg.t, at: msg.at, fromId: msg.fromId }, myNow, videoTime: video.time });
     cmd = { type: "pause" as const, seekTo: r.seekTo, suppressUntil: r.suppressUntil };
   } else {
     const r = applySeek({ event: { t: msg.t, at: msg.at, fromId: msg.fromId }, myNow });
     cmd = { type: "seek" as const, seekTo: r.seekTo!, suppressUntil: r.suppressUntil };
   }
-  void chrome.tabs.sendMessage(room.syncedTabId, { kind: "sw:applyEvent", apply: cmd });
+  void chrome.tabs.sendMessage(tabId, { kind: "sw:applyEvent", apply: cmd });
 }
 
 function forwardToSidebar(msg: RuntimeMessage): void {
@@ -236,25 +305,41 @@ async function pickSyncedTabId(): Promise<number | null> {
   return null;
 }
 
+function freshRoom(input: { roomId: string; nickname: string; syncedTabId?: number | null }): RoomState {
+  return {
+    roomId: input.roomId,
+    selfId: "",
+    nickname: input.nickname,
+    members: [],
+    currentUrl: null,
+    syncedTabId: input.syncedTabId ?? null,
+    bestCandidate: null,
+    reconnectingInMs: null,
+    lastKnown: null,
+  };
+}
+
 async function createRoom(nickname: string): Promise<void> {
-  room = { roomId: "", selfId: "", nickname, members: [], currentUrl: null, syncedTabId: null, bestCandidate: null, reconnectingInMs: null };
-  room.syncedTabId = await pickSyncedTabId();
+  const state = freshRoom({ roomId: "", nickname });
+  room = state;
+  state.syncedTabId = await pickSyncedTabId();
   // The socket may not be open yet; sendJoinForCurrentRoom() is also invoked from onOpen,
   // and will be a no-op here until the socket transitions to open state.
   if (client) sendJoinForCurrentRoom();
   else await openClient();
-  if (room.syncedTabId !== null) await storage.setSession(SessionKey.SyncedTabId, room.syncedTabId);
+  if (state.syncedTabId !== null) await storage.setSession(SessionKey.SyncedTabId, state.syncedTabId);
 }
 
 async function joinRoom(input: { roomId: string; nickname: string; syncedTabId?: number | null }): Promise<void> {
-  room = { roomId: input.roomId, selfId: "", nickname: input.nickname, members: [], currentUrl: null, syncedTabId: input.syncedTabId ?? null, bestCandidate: null, reconnectingInMs: null };
-  if (room.syncedTabId === null) {
-    room.syncedTabId = await pickSyncedTabId();
+  const state = freshRoom(input);
+  room = state;
+  if (state.syncedTabId === null) {
+    state.syncedTabId = await pickSyncedTabId();
   }
   if (client) sendJoinForCurrentRoom();
   else await openClient();
   await storage.setSession(SessionKey.ActiveRoom, { roomId: input.roomId, selfId: "", nickname: input.nickname });
-  if (room.syncedTabId !== null) await storage.setSession(SessionKey.SyncedTabId, room.syncedTabId);
+  if (state.syncedTabId !== null) await storage.setSession(SessionKey.SyncedTabId, state.syncedTabId);
 }
 
 async function leaveRoom(): Promise<void> {
@@ -301,10 +386,31 @@ onRuntimeMessage(async (msg, sender) => {
       }
       return;
     }
-    case "content:videoEvent":
+    case "content:videoEvent": {
+      // Keep our own baseline current: the server never echoes our events back,
+      // so without this the drift check would drag the person who pressed play
+      // back towards their own older position.
+      if (room) {
+        room.lastKnown = normaliseState({
+          t: msg.event.t,
+          at: msg.event.at,
+          playing: msg.event.type === "play",
+        });
+      }
       if (!client) return;
       client.send({ type: msg.event.type, t: msg.event.t, at: msg.event.at });
       return;
+    }
+    case "content:driftCheck": {
+      if (!room?.lastKnown || !room.syncedTabId) return { kind: "sw:driftVerdict", correctTo: null };
+      const verdict = continuousDrift({
+        lastKnown: room.lastKnown,
+        myOffset: clock.offset,
+        myNow: Date.now(),
+        videoTime: msg.t,
+      });
+      return { kind: "sw:driftVerdict", correctTo: verdict.correctTo };
+    }
     case "sidebar:chat": {
       const text = (msg as any).message?.text;
       if (!text || !client) return;

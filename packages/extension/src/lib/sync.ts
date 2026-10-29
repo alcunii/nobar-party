@@ -76,3 +76,26 @@ export function continuousDrift(params: {
   const drift = Math.abs(params.videoTime - expected);
   return { correctTo: drift > threshold ? expected : null };
 }
+
+/**
+ * A remote event carries (position, when-it-happened) on the *sender's* clock.
+ * Rewrite it as (position-now, now) on our server-adjusted clock, so later
+ * projections never subtract two different machines' local time.
+ */
+export function normaliseRemoteState(
+  state: { t: number; at: number; playing: boolean },
+  serverNow: number
+): { t: number; at: number; playing: boolean } {
+  if (!state.playing) return { t: state.t, at: serverNow, playing: false };
+  const elapsed = Math.max(0, serverNow - state.at) / 1000;
+  return { t: state.t + elapsed, at: serverNow, playing: true };
+}
+
+/** Where the room should be at `serverNow`, given its last known state. */
+export function projectPosition(
+  state: { t: number; at: number; playing: boolean },
+  serverNow: number
+): number {
+  if (!state.playing) return state.t;
+  return state.t + Math.max(0, serverNow - state.at) / 1000;
+}

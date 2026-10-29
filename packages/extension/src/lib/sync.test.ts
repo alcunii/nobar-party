@@ -4,6 +4,8 @@ import {
   applyPause,
   applySeek,
   continuousDrift,
+  normaliseRemoteState,
+  projectPosition,
   DRIFT_EVENT_THRESHOLD_S,
   DRIFT_CONTINUOUS_THRESHOLD_S,
   SUPPRESS_WINDOW_MS,
@@ -95,6 +97,66 @@ describe("continuousDrift", () => {
       videoTime: 50,
     });
     expect(r.correctTo).toBeNull();
+  });
+});
+
+describe("normaliseRemoteState", () => {
+  it("projects a playing state forward and re-bases it on our clock", () => {
+    // Sender said: at t=100 it was 1000 on their clock. We are 500 ms later.
+    const n = normaliseRemoteState({ t: 100, at: 1000, playing: true }, 1500);
+    expect(n.t).toBeCloseTo(100.5, 3);
+    expect(n.at).toBe(1500);
+    expect(n.playing).toBe(true);
+  });
+
+  it("leaves a paused position alone but still re-bases the clock", () => {
+    const n = normaliseRemoteState({ t: 42, at: 1000, playing: false }, 99_000);
+    expect(n.t).toBe(42);
+    expect(n.at).toBe(99_000);
+    expect(n.playing).toBe(false);
+  });
+
+  it("never projects backwards when the sender's clock is ahead of ours", () => {
+    const n = normaliseRemoteState({ t: 10, at: 2000, playing: true }, 1500);
+    expect(n.t).toBe(10);
+  });
+});
+
+describe("projectPosition", () => {
+  it("advances a playing state", () => {
+    expect(projectPosition({ t: 10, at: 1000, playing: true }, 3500)).toBeCloseTo(12.5, 3);
+  });
+
+  it("freezes a paused state", () => {
+    expect(projectPosition({ t: 10, at: 1000, playing: false }, 999_999)).toBe(10);
+  });
+});
+
+describe("normalise then drift", () => {
+  it("reports no correction for a client that is on time", () => {
+    const serverNow = 10_000;
+    const lastKnown = normaliseRemoteState({ t: 50, at: serverNow - 2000, playing: true }, serverNow);
+    // The state is already 2 s into playback; two more seconds pass, so the
+    // room should be at 54 — and so are we.
+    const r = continuousDrift({
+      lastKnown,
+      myOffset: 0,
+      myNow: serverNow + 2000,
+      videoTime: 54,
+    });
+    expect(r.correctTo).toBeNull();
+  });
+
+  it("corrects a client that fell behind while buffering", () => {
+    const serverNow = 10_000;
+    const lastKnown = normaliseRemoteState({ t: 50, at: serverNow - 2000, playing: true }, serverNow);
+    const r = continuousDrift({
+      lastKnown,
+      myOffset: 0,
+      myNow: serverNow + 2000,
+      videoTime: 49,   // 5 s behind
+    });
+    expect(r.correctTo).toBeCloseTo(54, 3);
   });
 });
 
