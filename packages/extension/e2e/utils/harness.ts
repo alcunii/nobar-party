@@ -19,13 +19,35 @@ export interface Harness {
   cleanup: () => Promise<void>;
 }
 
+// Poll /version instead of sleeping a guessed amount: a fixed delay is both
+// slower than needed on a fast machine and racy on a loaded CI runner.
+async function waitForSignaling(timeoutMs = 15_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const ok = await new Promise<boolean>((resolve) => {
+      const req = http.get("http://127.0.0.1:3051/version", (res: http.IncomingMessage) => {
+        res.resume();
+        resolve(res.statusCode === 200);
+      });
+      req.on("error", () => resolve(false));
+      req.setTimeout(500, () => {
+        req.destroy();
+        resolve(false);
+      });
+    });
+    if (ok) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error("signaling server did not become ready on :3051 within 15s");
+}
+
 export async function startHarness(): Promise<Harness> {
   const signaling = spawn("node", ["packages/server/dist/index.js"], {
     cwd: repoRoot,
     env: { ...process.env, PORT: "3051", HOST: "127.0.0.1", LOG_LEVEL: "warn" },
     stdio: ["ignore", "inherit", "inherit"],
   });
-  await new Promise((r) => setTimeout(r, 500));
+  await waitForSignaling();
 
   const httpServer = http.createServer((req, res) => {
     const reqPath = (req.url || "/").replace(/\?.*$/, "");
