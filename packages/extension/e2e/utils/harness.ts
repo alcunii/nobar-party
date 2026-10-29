@@ -75,8 +75,12 @@ export async function startHarness(): Promise<Harness> {
       `--load-extension=${extensionDist}`,
       "--no-first-run",
       "--no-default-browser-check",
+      // Without this, Chromium refuses to start unmuted playback from an
+      // evaluate() call (no user gesture), so the video never leaves paused
+      // state and every sync assertion times out.
+      "--autoplay-policy=no-user-gesture-required",
     ],
-  } as const;
+  };
   const userA = await chromium.launchPersistentContext("", { ...ctxArgs });
   const userB = await chromium.launchPersistentContext("", { ...ctxArgs });
 
