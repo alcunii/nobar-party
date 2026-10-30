@@ -3,9 +3,14 @@ import type { ServerMessage } from "@nobar-party/protocol";
 export type RuntimeMessage =
   | { kind: "content:hello"; url: string; candidates: ContentCandidate[]; tabId?: number }
   | { kind: "content:videoEvent"; event: LocalVideoEvent; frameId?: number }
+  | { kind: "content:driftCheck"; t: number; frameId?: number }
   | { kind: "content:setTargetAck"; frameId: number; bestSignature: string }
   | { kind: "sw:applyEvent"; apply: ApplyCommand }
+  | { kind: "sw:getVideoState" }
+  | { kind: "sw:videoState"; time: number; paused: boolean }
+  | { kind: "sw:driftVerdict"; correctTo: number | null }
   | { kind: "sw:roomState"; state: ActiveRoomView }
+  | { kind: "sw:notice"; text: string }
   | { kind: "sw:pickManually"; candidates: ContentCandidate[] }
   | { kind: "sidebar:chat"; message: ChatLine }
   | { kind: "sidebar:peerEvent"; event: ServerMessage }

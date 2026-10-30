@@ -47,8 +47,9 @@ async function init(): Promise<void> {
 }
 
 chrome.runtime.onMessage.addListener((msg: unknown) => {
-  const m = msg as { kind?: string; state?: ActiveRoomView | null };
+  const m = msg as { kind?: string; state?: ActiveRoomView | null; text?: string };
   if (m.kind === "sw:roomState") render(m.state ?? null);
+  if (m.kind === "sw:notice" && m.text) showToast(m.text);
 });
 
 let lastRenderedState: ActiveRoomView | null = null;
