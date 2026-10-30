@@ -106,10 +106,31 @@ export class ConnectionManager {
       }
     }
 
-    const admit = room.tryAdmit({ id: ctx.id, nickname: msg.nickname });
+    // Only adopt an identity whose connection has actually dropped and is still
+    // inside the grace window. Otherwise any client holding a member id (they
+    // are visible to everyone in the room) could seize an active peer's slot.
+    const canTakeOver =
+      !!msg.previousId && room.has(msg.previousId) && this.pendingGraceByMember.has(msg.previousId);
+    const admit = room.tryAdmit({
+      id: ctx.id,
+      nickname: msg.nickname,
+      previousId: canTakeOver ? msg.previousId : undefined,
+    });
     if (!admit.ok) {
       this.send(ctx, { type: "error", code: "room_full", message: "room at capacity" });
       return;
+    }
+
+    // Reconnecting: the server handed our old member back. Adopt its id as this
+    // connection's identity and cancel the pending "peer-left" announcement, so
+    // the rest of the room never sees a leave/rejoin blip.
+    if (admit.member.id !== ctx.id) {
+      const pending = this.pendingGraceByMember.get(admit.member.id);
+      if (pending) {
+        if (pending.graceTimer) clearTimeout(pending.graceTimer);
+        this.pendingGraceByMember.delete(admit.member.id);
+      }
+      ctx.id = admit.member.id;
     }
 
     ctx.room = room;
@@ -206,12 +227,15 @@ export class ConnectionManager {
     const room = ctx.room;
     const member = ctx.member;
     if (!room || !member) return;
-    // 30 s grace for clean reconnect. For v1 we announce leave immediately after grace.
-    // (A reconnecting client uses a new ctx.id, so we keep this simple: just announce after grace.)
+    // Keep the slot warm for a short grace period. A client that comes back
+    // sends join.previousId, which cancels this timer and takes the member over
+    // instead of appearing twice in the room.
     ctx.graceTimer = setTimeout(() => {
+      this.pendingGraceByMember.delete(member.id);
       room.remove(member.id);
       this.broadcast(room, member.id, { type: "peer-left", id: member.id });
     }, this.cfg.graceMs);
+    this.pendingGraceByMember.set(member.id, ctx);
   }
 
   private broadcast(room: Room, exceptId: string, msg: ServerMessage): void {

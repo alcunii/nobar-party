@@ -15,7 +15,7 @@ const cfg: ServerConfig = {
   maxRooms: 100,
   frameBytes: 16 * 1024,
   rateLimit: { capacity: 100, refillPerSec: 100 },
-  graceMs: 100,
+  graceMs: 1000,
 };
 
 async function startServer() {
@@ -61,6 +61,28 @@ function waitFor<T extends ServerMessage>(
 
 function send(ws: WebSocket, msg: ClientMessage): void {
   ws.send(JSON.stringify(msg));
+}
+
+/** Resolves with the first matching message, or null if none arrived in time. */
+function silence(
+  ws: WebSocket,
+  predicate: (m: ServerMessage) => boolean,
+  ms = 400
+): Promise<ServerMessage | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      ws.off("message", onMsg);
+      resolve(null);
+    }, ms);
+    const onMsg = (data: unknown) => {
+      const msg = JSON.parse(String(data)) as ServerMessage;
+      if (!predicate(msg)) return;
+      clearTimeout(timer);
+      ws.off("message", onMsg);
+      resolve(msg);
+    };
+    ws.on("message", onMsg);
+  });
 }
 
 describe("server integration", () => {
@@ -130,6 +152,62 @@ describe("server integration", () => {
 
     a.close();
     b.close();
+  });
+
+  it("reconnect with previousId keeps one member and cancels the leave announcement", async () => {
+    const a = await openClient(server.url);
+    send(a, { type: "join", nickname: "alice", create: true });
+    const aRoom = await waitFor(a, (m): m is Extract<ServerMessage, { type: "room" }> => m.type === "room");
+
+    const b = await openClient(server.url);
+    send(b, { type: "join", nickname: "bob", roomId: aRoom.roomId });
+    const bRoom = await waitFor(b, (m): m is Extract<ServerMessage, { type: "room" }> => m.type === "room");
+    await waitFor(a, (m): m is Extract<ServerMessage, { type: "peer-joined" }> => m.type === "peer-joined");
+
+    const oldId = bRoom.selfId;
+
+    // Socket drops; the member should stay warm for the grace window.
+    b.close();
+
+    // Reconnect well inside the grace window, presenting the id we were given.
+    const b2 = await openClient(server.url);
+    send(b2, { type: "join", nickname: "bob", roomId: aRoom.roomId, previousId: oldId });
+    const b2Room = await waitFor(b2, (m): m is Extract<ServerMessage, { type: "room" }> => m.type === "room");
+
+    expect(b2Room.selfId).toBe(oldId);
+    expect(b2Room.members).toHaveLength(2);
+    expect(b2Room.members.filter((m) => m.nickname === "bob")).toHaveLength(1);
+
+    // The rest of the room must never see bob leave.
+    const leave = await silence(a, (m) => m.type === "peer-left", 400);
+    expect(leave).toBeNull();
+
+    a.close();
+    b2.close();
+  });
+
+  it("refuses to take over a member whose connection is still alive", async () => {
+    const a = await openClient(server.url);
+    send(a, { type: "join", nickname: "alice", create: true });
+    const aRoom = await waitFor(a, (m): m is Extract<ServerMessage, { type: "room" }> => m.type === "room");
+
+    const b = await openClient(server.url);
+    send(b, { type: "join", nickname: "bob", roomId: aRoom.roomId });
+    const bRoom = await waitFor(b, (m): m is Extract<ServerMessage, { type: "room" }> => m.type === "room");
+
+    // A third client presents bob's live member id. Member ids are visible to
+    // everyone in the room, so this must not hand over bob's identity.
+    const c = await openClient(server.url);
+    send(c, { type: "join", nickname: "mallory", roomId: aRoom.roomId, previousId: bRoom.selfId });
+    const cRoom = await waitFor(c, (m): m is Extract<ServerMessage, { type: "room" }> => m.type === "room");
+
+    expect(cRoom.selfId).not.toBe(bRoom.selfId);
+    expect(cRoom.members.filter((m) => m.nickname === "bob")).toHaveLength(1);
+    expect(cRoom.members.filter((m) => m.nickname === "mallory")).toHaveLength(1);
+
+    a.close();
+    b.close();
+    c.close();
   });
 
   it("returns error for join on unknown room", async () => {

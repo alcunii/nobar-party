@@ -79,4 +79,46 @@ describe("RoomRegistry", () => {
     room.updateState({ url: "https://example.com/v", playing: true, t: 5, at: 100 });
     expect(room.lastState).toEqual({ url: "https://example.com/v", playing: true, t: 5, at: 100 });
   });
+
+  it("hands the previous member back on reconnect instead of adding a duplicate", () => {
+    const reg = new RoomRegistry({ maxRoomSize: 10, maxRooms: 100 });
+    const { room } = reg.create() as { ok: true; room: any };
+    const first = room.tryAdmit({ id: "old-connection", nickname: "alice" });
+    if (!first.ok) throw new Error("unreachable");
+
+    // The socket dropped: the member is still held for the grace window, and
+    // the reconnecting client arrives with a brand-new connection id.
+    const again = room.tryAdmit({ id: "new-connection", nickname: "alice", previousId: first.member.id });
+
+    if (!again.ok) throw new Error("unreachable");
+    expect(again.member.id).toBe("old-connection");
+    expect(again.member.displayName).toBe("alice");
+    expect(room.size()).toBe(1);
+    expect(room.memberList().map((m: { id: string }) => m.id)).toEqual(["old-connection"]);
+  });
+
+  it("does not disambiguate the reconnecting member against itself", () => {
+    const reg = new RoomRegistry({ maxRoomSize: 10, maxRooms: 100 });
+    const { room } = reg.create() as { ok: true; room: any };
+    room.tryAdmit({ id: "1", nickname: "alice" });
+    // Someone else already owns the (2) suffix.
+    room.tryAdmit({ id: "2", nickname: "alice" });
+
+    const again = room.tryAdmit({ id: "3", nickname: "alice", previousId: "1" });
+    if (!again.ok) throw new Error("unreachable");
+    // Without excluding self, alice would have been bumped to "alice (2)" —
+    // a name already taken — or worse, "alice (3)".
+    expect(again.member.id).toBe("1");
+    expect(again.member.displayName).toBe("alice");
+    expect(room.size()).toBe(2);
+  });
+
+  it("falls back to a normal admit when previousId is unknown or stale", () => {
+    const reg = new RoomRegistry({ maxRoomSize: 10, maxRooms: 100 });
+    const { room } = reg.create() as { ok: true; room: any };
+    const res = room.tryAdmit({ id: "conn-1", nickname: "bob", previousId: "gone" });
+    if (!res.ok) throw new Error("unreachable");
+    expect(res.member.id).toBe("conn-1");
+    expect(room.size()).toBe(1);
+  });
 });

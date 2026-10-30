@@ -21,6 +21,12 @@ export const ClientJoin = z.object({
   roomId: RoomIdSchema.optional(),
   nickname: NicknameSchema,
   create: z.boolean().optional(),
+  /**
+   * The member id we were given last time. A reconnecting client sends this so
+   * the server can hand the same member back instead of listing them twice
+   * while the disconnect grace timer is still running.
+   */
+  previousId: z.string().min(1).max(64).optional(),
 });
 
 export const ClientLeave = z.object({

@@ -101,7 +101,14 @@ async function doVersionCheck(): Promise<void> {
 function sendJoinForCurrentRoom(): void {
   if (!client || !room) return;
   if (room.roomId) {
-    client.send({ type: "join", roomId: room.roomId, nickname: room.nickname });
+    client.send({
+      type: "join",
+      roomId: room.roomId,
+      nickname: room.nickname,
+      // On a reconnect, ask the server to hand our old member back so the room
+      // does not list us twice for the length of the grace window.
+      ...(room.selfId ? { previousId: room.selfId } : {}),
+    });
   } else {
     client.send({ type: "join", nickname: room.nickname, create: true });
   }
