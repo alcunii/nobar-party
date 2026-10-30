@@ -9,11 +9,18 @@ permissions:
 
 jobs:
   build:
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: windows-latest
+            bundle: msi
+            artifact: NobarParty-windows.msi
+          - os: macos-latest
+            bundle: dmg
+            artifact: NobarParty-macos.dmg
     steps:
       - uses: actions/checkout@v4
 
@@ -30,33 +37,62 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build installer (and extension via prebuild)
-        run: pnpm --filter @nobar-party/installer build
-
-      - name: Rename Windows artifact to stable filename
-        if: matrix.os == 'windows-latest'
+      # A tag that disagrees with the code publishes an installer whose built-in
+      # version never triggers the update badge. Fail loudly instead.
+      - name: Tag matches version
         shell: bash
         run: |
-          cd packages/installer/src-tauri/target/release/bundle/msi
-          mv NobarParty_*.msi NobarParty-windows.msi
+          tag_version="${GITHUB_REF_NAME#installer-v}"
+          pkg_version="$(node -p "require('./package.json').version")"
+          echo "tag=$tag_version package=$pkg_version"
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "::error::tag installer-v$tag_version does not match package.json $pkg_version — run 'pnpm version:set $tag_version' first"
+            exit 1
+          fi
 
-      - name: Rename macOS artifact to stable filename
-        if: matrix.os == 'macos-latest'
+      - name: Version consistency
+        run: pnpm version:check
+
+      - name: Build installer (extension is bundled via prebuild)
+        run: pnpm build:installer
+
+      - name: Normalise artifact name
         shell: bash
         run: |
-          cd packages/installer/src-tauri/target/release/bundle/dmg
-          mv NobarParty_*.dmg NobarParty-macos.dmg
+          out="packages/installer/src-tauri/target/release/bundle/${{ matrix.bundle }}"
+          src="$(ls "$out"/NobarParty_* 2>/dev/null | head -n 1)"
+          if [ -z "$src" ]; then
+            echo "::error::no bundle produced in $out"
+            exit 1
+          fi
+          mv -f "$src" "$out/${{ matrix.artifact }}"
+          ls -lh "$out/${{ matrix.artifact }}"
 
-      - name: Upload Windows artifact
-        if: matrix.os == 'windows-latest'
-        uses: softprops/action-gh-release@v2
+      - uses: actions/upload-artifact@v4
         with:
-          files: packages/installer/src-tauri/target/release/bundle/msi/NobarParty-windows.msi
-          draft: true
+          name: ${{ matrix.artifact }}
+          path: packages/installer/src-tauri/target/release/bundle/${{ matrix.bundle }}/${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 14
 
-      - name: Upload macOS artifact
-        if: matrix.os == 'macos-latest'
-        uses: softprops/action-gh-release@v2
+  release:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
         with:
-          files: packages/installer/src-tauri/target/release/bundle/dmg/NobarParty-macos.dmg
-          draft: true
+          path: dist
+          merge-multiple: true
+
+      - name: List release assets
+        run: ls -lh dist
+
+      # One release per tag with both installers attached, published rather than
+      # drafted so releases/latest/download/ resolves for the landing-page links.
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          draft: false
+          fail_on_unmatched_files: true
+          generate_release_notes: true

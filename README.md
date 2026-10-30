@@ -236,10 +236,12 @@ Click **Leave room** in the popup. The WebSocket closes gracefully; the sidebar 
 ## 🧪 Testing
 
 ```bash
-pnpm test         # 128 unit + integration tests across TS packages
-pnpm test:e2e     # Playwright two-Chromium-contexts sync test
-pnpm typecheck    # Strict TypeScript across the workspace
-pnpm build        # Builds protocol, server, extension (Tauri installer builds via CI)
+pnpm test          # 128 unit + integration tests across TS packages
+pnpm test:e2e      # Playwright two-Chromium-contexts sync test
+pnpm typecheck     # Strict TypeScript across the workspace
+pnpm build         # Builds protocol, server, extension (no Rust needed)
+pnpm build:installer  # Builds the Tauri .msi/.dmg — needs Rust; CI does this on tags
+pnpm version:check # Every file that stamps a version agrees (CI gate)
 ```
 
 **Coverage:**
@@ -258,7 +260,7 @@ pnpm build        # Builds protocol, server, extension (Tauri installer builds v
 - 🗝️ **The room code is the only access control.** Anyone with the code can join — intentional trade-off for a personal tool. Don't share codes with strangers
 - 🔨 Every incoming frame is validated with Zod; malformed or oversized frames (>16 KB) are dropped
 - 💬 Chat is rendered via `textContent`, never `innerHTML` — XSS-safe by construction
-- 🚦 Per-connection rate limiting (20 msgs/sec via token bucket) and per-IP connection caps
+- 🚦 Per-connection rate limiting (20 msgs/sec via token bucket), plus Zod validation and a 16 KB frame cap
 - 🛡️ Content scripts request only the minimum permissions needed (`storage`, `alarms`, `tabs`)
 - 🧱 Content scripts never touch `chrome.storage.session` — only the service worker does (MV3 privilege separation)
 - 🔐 The installer's webview runs with CSP, no remote content, bundles the extension into the OS app resources directory
