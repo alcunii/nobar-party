@@ -51,12 +51,24 @@ export class Room {
     return this.members.has(id);
   }
 
-  tryAdmit(input: { id: string; nickname: string }): AdmitResult {
+  tryAdmit(input: { id: string; nickname: string; previousId?: string | undefined }): AdmitResult {
+    // Reconnect takeover: the room still holds our old member during the grace
+    // window, so adopt it rather than adding a second copy of the same person.
+    if (input.previousId && this.members.has(input.previousId)) {
+      this.cancelEviction();
+      const member: Member = {
+        id: input.previousId,
+        nickname: input.nickname,
+        displayName: this.disambiguate(input.nickname, input.previousId),
+      };
+      this.members.set(member.id, member);
+      return { ok: true, member };
+    }
     if (this.members.size >= this.maxSize && !this.members.has(input.id)) {
       return { ok: false, error: "room_full" };
     }
     this.cancelEviction();
-    const displayName = this.disambiguate(input.nickname);
+    const displayName = this.disambiguate(input.nickname, input.id);
     const member: Member = { id: input.id, nickname: input.nickname, displayName };
     this.members.set(input.id, member);
     return { ok: true, member };
@@ -71,8 +83,10 @@ export class Room {
     this.lastState = s;
   }
 
-  private disambiguate(nickname: string): string {
-    const existing = Array.from(this.members.values()).map((m) => m.displayName);
+  private disambiguate(nickname: string, excludeId?: string): string {
+    const existing = Array.from(this.members.values())
+      .filter((m) => m.id !== excludeId)
+      .map((m) => m.displayName);
     if (!existing.includes(nickname)) return nickname;
     for (let n = 2; n <= this.maxSize + 1; n++) {
       const candidate = `${nickname} (${n})`;
